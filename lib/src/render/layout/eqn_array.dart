@@ -61,6 +61,7 @@ class RenderEqnArray extends RenderBox
 
   double get ruleThickness => _ruleThickness;
   double _ruleThickness;
+
   set ruleThickness(double value) {
     if (_ruleThickness != value) {
       _ruleThickness = value;
@@ -70,6 +71,7 @@ class RenderEqnArray extends RenderBox
 
   double get jotSize => _jotSize;
   double _jotSize;
+
   set jotSize(double value) {
     if (_jotSize != value) {
       _jotSize = value;
@@ -79,6 +81,7 @@ class RenderEqnArray extends RenderBox
 
   double get arrayskip => _arrayskip;
   double _arrayskip;
+
   set arrayskip(double value) {
     if (_arrayskip != value) {
       _arrayskip = value;
@@ -88,6 +91,7 @@ class RenderEqnArray extends RenderBox
 
   List<MatrixSeparatorStyle> get hlines => _hlines;
   List<MatrixSeparatorStyle> _hlines;
+
   set hlines(List<MatrixSeparatorStyle> value) {
     if (_hlines != value) {
       _hlines = value;
@@ -97,6 +101,7 @@ class RenderEqnArray extends RenderBox
 
   List<double> get rowSpacings => _rowSpacings;
   List<double> _rowSpacings;
+
   set rowSpacings(List<double> value) {
     if (_rowSpacings != value) {
       _rowSpacings = value;

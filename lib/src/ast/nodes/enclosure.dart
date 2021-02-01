@@ -246,13 +246,21 @@ class HorizontalStrikeDelegate extends CustomLayoutDelegate<int> {
       childSize(childrenTable[0]!, double.infinity);
 
   @override
-  Size performLayout(
-      BoxConstraints constraints, Map<int, RenderBox> childrenTable) {
+  Size computeLayout(
+      BoxConstraints constraints, Map<int, RenderBox> childrenTable,
+      {bool dry = true}) {
     final base = childrenTable[0]!;
-    base.layout(constraints, parentUsesSize: true);
-    height = base.layoutHeight;
-    width = base.size.width;
-    return base.size;
+
+    final Size baseSize;
+    if (dry) {
+      baseSize = base.getDryLayout(constraints);
+    } else {
+      base.layout(constraints, parentUsesSize: true);
+      height = base.layoutHeight;
+      width = base.size.width;
+      baseSize = base.size;
+    }
+    return baseSize;
   }
 
   @override

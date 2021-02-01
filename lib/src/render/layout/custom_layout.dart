@@ -1,16 +1,19 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+
 import '../constants.dart';
 import '../utils/get_type_of.dart';
-
 import '../utils/render_box_offset.dart';
 
 abstract class CustomLayoutDelegate<T> {
   const CustomLayoutDelegate();
 
   // last parameter is for a hack to render asynchronously for flutter_svg
-  Size performLayout(
-      BoxConstraints constraints, Map<T, RenderBox> childrenTable);
+  Size computeLayout(
+    BoxConstraints constraints,
+    Map<T, RenderBox> childrenTable, {
+    bool dry,
+  });
 
   double getIntrinsicSize({
     required Axis sizingDirection,
@@ -115,6 +118,7 @@ class RenderCustomLayout<T> extends RenderBox
   /// The delegate that controls the layout of the children.
   CustomLayoutDelegate<T> get delegate => _delegate;
   CustomLayoutDelegate<T> _delegate;
+
   set delegate(CustomLayoutDelegate<T> newDelegate) {
     if (_delegate != newDelegate) {
       markNeedsLayout();
@@ -194,10 +198,18 @@ class RenderCustomLayout<T> extends RenderBox
       delegate.computeDistanceToActualBaseline(baseline, childrenTable);
 
   @override
+  Size computeDryLayout(BoxConstraints constraints) =>
+      _computeLayout(constraints);
+
+  @override
   void performLayout() {
-    final size = delegate.performLayout(constraints, childrenTable);
-    this.size = constraints.constrain(size);
+    size = _computeLayout(constraints, dry: false);
   }
+
+  Size _computeLayout(BoxConstraints constraints, {bool dry = true}) =>
+      constraints.constrain(
+        delegate.computeLayout(constraints, childrenTable, dry: dry),
+      );
 
   @override
   void paint(PaintingContext context, Offset offset) {
@@ -213,6 +225,7 @@ class RenderCustomLayout<T> extends RenderBox
 class AxisConfiguration<T> {
   final double size;
   final Map<T, double> offsetTable;
+
   AxisConfiguration({
     required this.size,
     required this.offsetTable,
@@ -259,25 +272,37 @@ abstract class IntrinsicLayoutDelegate<T> extends CustomLayoutDelegate<T> {
   }
 
   @override
-  Size performLayout(
-      BoxConstraints constraints, Map<T, RenderBox> childrenTable) {
-    childrenTable.forEach(
-        (_, child) => child.layout(infiniteConstraint, parentUsesSize: true));
+  Size computeLayout(
+      BoxConstraints constraints, Map<T, RenderBox> childrenTable,
+      {bool dry = true}) {
+    final sizeMap = <T, Size>{};
+    for (final childEntry in childrenTable.entries) {
+      if (dry) {
+        sizeMap[childEntry.key] =
+            childEntry.value.getDryLayout(infiniteConstraint);
+      } else {
+        childEntry.value.layout(infiniteConstraint, parentUsesSize: true);
+        sizeMap[childEntry.key] = childEntry.value.size;
+      }
+    }
     final hconf = performHorizontalIntrinsicLayout(
-      childrenWidths:
-          childrenTable.map((key, value) => MapEntry(key, value.size.width)),
+      childrenWidths: sizeMap.map((key, value) => MapEntry(key, value.width)),
     );
     final vconf = performVerticalIntrinsicLayout(
-      childrenHeights:
-          childrenTable.map((key, value) => MapEntry(key, value.size.height)),
+      childrenHeights: sizeMap.map((key, value) => MapEntry(key, value.height)),
       childrenBaselines: childrenTable.map((key, value) => MapEntry(
             key,
-            value.getDistanceToBaseline(TextBaseline.alphabetic,
-                onlyReal: true)!,
+            dry
+                ? 0
+                // todo(znjameswu): figure this out for dry layout.
+                : value.getDistanceToBaseline(TextBaseline.alphabetic,
+                    onlyReal: true)!,
           )),
     );
-    childrenTable.forEach((id, child) =>
-        child.offset = Offset(hconf.offsetTable[id]!, vconf.offsetTable[id]!));
+    if (!dry) {
+      childrenTable.forEach((id, child) => child.offset =
+          Offset(hconf.offsetTable[id]!, vconf.offsetTable[id]!));
+    }
     return Size(hconf.size, vconf.size);
   }
 }

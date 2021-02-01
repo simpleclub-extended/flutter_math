@@ -1,5 +1,6 @@
 //ignore_for_file: lines_longer_than_80_chars
 import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -167,6 +168,7 @@ class RenderLine extends RenderBox
 
   CrossAxisAlignment get crossAxisAlignment => _crossAxisAlignment;
   CrossAxisAlignment _crossAxisAlignment;
+
   set crossAxisAlignment(CrossAxisAlignment value) {
     if (_crossAxisAlignment != value) {
       _crossAxisAlignment = value;
@@ -176,6 +178,7 @@ class RenderLine extends RenderBox
 
   double get minDepth => _minDepth;
   double _minDepth;
+
   set minDepth(double value) {
     if (_minDepth != value) {
       _minDepth = value;
@@ -185,6 +188,7 @@ class RenderLine extends RenderBox
 
   double get minHeight => _minHeight;
   double _minHeight;
+
   set minHeight(double value) {
     if (_minHeight != value) {
       _minHeight = value;
@@ -194,6 +198,7 @@ class RenderLine extends RenderBox
 
   TextBaseline get textBaseline => _textBaseline;
   TextBaseline _textBaseline;
+
   set textBaseline(TextBaseline value) {
     if (_textBaseline != value) {
       _textBaseline = value;
@@ -203,6 +208,7 @@ class RenderLine extends RenderBox
 
   TextDirection? get textDirection => _textDirection;
   TextDirection? _textDirection;
+
   set textDirection(TextDirection? value) {
     if (_textDirection != value) {
       _textDirection = value;
@@ -217,6 +223,7 @@ class RenderLine extends RenderBox
   }
 
   double? _overflow;
+
   bool get _hasOverflow => _overflow! > precisionErrorTolerance;
 
   @override
@@ -311,11 +318,21 @@ class RenderLine extends RenderBox
   List<double>? alignColWidth;
 
   @override
+  Size computeDryLayout(BoxConstraints constraints) =>
+      _computeLayout(constraints);
+
+  @override
   void performLayout() {
+    size = _computeLayout(constraints, dry: false);
+  }
+
+  Size _computeLayout(BoxConstraints constraints, {bool dry = true}) {
     assert(_debugHasNecessaryDirections);
 
     // First pass, layout fixed-sized children to calculate height and depth
-    maxHeightAboveBaseline = 0.0;
+    if (!dry) {
+      maxHeightAboveBaseline = 0.0;
+    }
     var maxDepthBelowBaseline = 0.0;
     var child = firstChild;
     final relativeChildren = <RenderBox>[];
@@ -327,13 +344,20 @@ class RenderLine extends RenderBox
       } else if (childParentData.alignerOrSpacer) {
         alignerAndSpacers.add(child);
       } else {
-        // final innerConstraints =
-        //     BoxConstraints(maxHeight: constraints.maxHeight);
-        child.layout(infiniteConstraint, parentUsesSize: true);
-        final distance = child.getDistanceToBaseline(textBaseline)!;
-        maxHeightAboveBaseline = math.max(maxHeightAboveBaseline, distance);
+        final Size childSize;
+
+        if (dry) {
+          childSize = child.getDryLayout(constraints);
+        } else {
+          child.layout(infiniteConstraint, parentUsesSize: true);
+          childSize = child.size;
+        }
+        final distance = dry ? .0 : child.getDistanceToBaseline(textBaseline)!;
+        if (!dry) {
+          maxHeightAboveBaseline = math.max(maxHeightAboveBaseline, distance);
+        }
         maxDepthBelowBaseline =
-            math.max(maxDepthBelowBaseline, child.size.height - distance);
+            math.max(maxDepthBelowBaseline, childSize.height - distance);
       }
       assert(child.parentData == childParentData);
       child = childParentData.nextSibling;
@@ -343,19 +367,32 @@ class RenderLine extends RenderBox
     for (final child in relativeChildren) {
       final childParentData = child.parentData as LineParentData;
       assert(childParentData.customCrossSize != null);
-      child.layout(
-        childParentData.customCrossSize!(
-            maxHeightAboveBaseline, maxDepthBelowBaseline),
-        parentUsesSize: true,
-      );
-      final distance = child.getDistanceToBaseline(textBaseline)!;
-      maxHeightAboveBaseline = math.max(maxHeightAboveBaseline, distance);
+
+      final Size childSize;
+      final childConstraints = childParentData.customCrossSize!(
+          maxHeightAboveBaseline, maxDepthBelowBaseline);
+      if (!dry) {
+        child.layout(
+          childConstraints,
+          parentUsesSize: true,
+        );
+        childSize = child.size;
+      } else {
+        childSize = child.getDryLayout(childConstraints);
+      }
+      final distance = dry ? .0 : child.getDistanceToBaseline(textBaseline)!;
+
+      if (!dry) {
+        maxHeightAboveBaseline = math.max(maxHeightAboveBaseline, distance);
+      }
       maxDepthBelowBaseline =
-          math.max(maxDepthBelowBaseline, child.size.height - distance);
+          math.max(maxDepthBelowBaseline, childSize.height - distance);
     }
 
     // Apply mininmum size constraint
-    maxHeightAboveBaseline = math.max(maxHeightAboveBaseline, minHeight);
+    if (!dry) {
+      maxHeightAboveBaseline = math.max(maxHeightAboveBaseline, minHeight);
+    }
     maxDepthBelowBaseline = math.max(maxDepthBelowBaseline, minDepth);
 
     // Third pass. Calculate column width separate by aligners and spacers.
@@ -370,32 +407,46 @@ class RenderLine extends RenderBox
     caretOffsets = [mainPos];
     while (child != null) {
       final childParentData = child.parentData as LineParentData;
+      var childSize = Size.zero;
+      final childConstraints = BoxConstraints.tightFor(width: 0.0);
+
       if (childParentData.alignerOrSpacer) {
-        child.layout(BoxConstraints.tightFor(width: 0.0), parentUsesSize: true);
+        if (!dry) {
+          child.layout(childConstraints, parentUsesSize: true);
+          childSize = child.size;
+        } else {
+          childSize = child.getDryLayout(childConstraints);
+        }
         colWidths.add(mainPos - lastColPosition);
         lastColPosition = mainPos;
       }
-      childParentData.offset =
-          Offset(mainPos, maxHeightAboveBaseline - child.layoutHeight);
-      mainPos += child.size.width + childParentData.trailingMargin;
+      if (!dry) {
+        childParentData.offset =
+            Offset(mainPos, maxHeightAboveBaseline - child.layoutHeight);
+      }
+      mainPos += childSize.width + childParentData.trailingMargin;
 
       caretOffsets.add(mainPos);
       child = childParentData.nextSibling;
     }
     colWidths.add(mainPos - lastColPosition);
 
-    size = constraints.constrain(
+    var size = constraints.constrain(
         Size(mainPos, maxHeightAboveBaseline + maxDepthBelowBaseline));
+    if (dry) {
+      return size;
+    }
+
     _overflow = mainPos - size.width;
 
     // If we have no aligners or spacers, no need to do the fourth pass.
-    if (alignerAndSpacers.isEmpty) return;
+    if (alignerAndSpacers.isEmpty) return size;
 
     // If we are have no aligning instructions, no need to do the fourth pass.
     if (this.alignColWidth == null) {
       // Report column width
       this.alignColWidth = colWidths;
-      return;
+      return size;
     }
 
     // If the code reaches here, means we have aligners/spacers and the
@@ -458,6 +509,7 @@ class RenderLine extends RenderBox
     size = constraints.constrain(
         Size(mainPos, maxHeightAboveBaseline + maxDepthBelowBaseline));
     _overflow = mainPos - size.width;
+    return size;
   }
 
   @override

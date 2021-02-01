@@ -53,6 +53,7 @@ class RenderResetDimension extends RenderShiftedBox {
 
   double? get layoutHeight => _layoutHeight;
   double? _layoutHeight;
+
   set layoutHeight(double? value) {
     if (_layoutHeight != value) {
       _layoutHeight = value;
@@ -62,6 +63,7 @@ class RenderResetDimension extends RenderShiftedBox {
 
   double? get layoutDepth => _layoutDepth;
   double? _layoutDepth;
+
   set layoutDepth(double? value) {
     if (_layoutDepth != value) {
       _layoutDepth = value;
@@ -71,6 +73,7 @@ class RenderResetDimension extends RenderShiftedBox {
 
   double? get layoutWidth => _layoutWidth;
   double? _layoutWidth;
+
   set layoutWidth(double? value) {
     if (_layoutWidth != value) {
       _layoutWidth = value;
@@ -80,6 +83,7 @@ class RenderResetDimension extends RenderShiftedBox {
 
   CrossAxisAlignment get horizontalAlignment => _horizontalAlignment;
   CrossAxisAlignment _horizontalAlignment;
+
   set horizontalAlignment(CrossAxisAlignment value) {
     if (_horizontalAlignment != value) {
       _horizontalAlignment = value;
@@ -122,12 +126,29 @@ class RenderResetDimension extends RenderShiftedBox {
       layoutHeight ?? super.computeDistanceToActualBaseline(baseline);
 
   @override
+  Size computeDryLayout(BoxConstraints constraints) =>
+      _computeLayout(constraints);
+
+  @override
   void performLayout() {
+    size = _computeLayout(constraints, dry: false);
+  }
+
+  Size _computeLayout(BoxConstraints constraints, {bool dry = true}) {
     final child = this.child!;
-    child.layout(infiniteConstraint, parentUsesSize: true);
-    final childHeight = child.getDistanceToBaseline(TextBaseline.alphabetic)!;
-    final childDepth = child.size.height - childHeight;
-    final childWidth = child.size.width;
+    final Size childSize;
+
+    if (!dry) {
+      child.layout(infiniteConstraint, parentUsesSize: true);
+      childSize = child.size;
+    } else {
+      childSize = child.getDryLayout(infiniteConstraint);
+    }
+
+    final childHeight =
+        dry ? .0 : child.getDistanceToBaseline(TextBaseline.alphabetic)!;
+    final childDepth = childSize.height - childHeight;
+    final childWidth = childSize.width;
 
     final height = layoutHeight ?? childHeight;
     final depth = layoutDepth ?? childDepth;
@@ -147,7 +168,11 @@ class RenderResetDimension extends RenderShiftedBox {
         dx = (width - childWidth) / 2;
         break;
     }
-    child.offset = Offset(dx, height - childHeight);
-    size = Size(width, height + depth);
+
+    if (!dry) {
+      child.offset = Offset(dx, height - childHeight);
+    }
+
+    return Size(width, height + depth);
   }
 }

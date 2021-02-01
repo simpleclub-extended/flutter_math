@@ -1,5 +1,6 @@
 //ignore_for_file: lines_longer_than_80_chars
 import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -115,9 +116,11 @@ class VList extends MultiChildRenderObjectWidget {
   }) : super(key: key, children: children);
   final TextBaseline textBaseline;
   final int baselineReferenceWidgetIndex;
+
   // final double baselineOffset;
   final CrossAxisAlignment crossAxisAlignment;
   final TextDirection? textDirection;
+
   bool get _needTextDirection =>
       crossAxisAlignment == CrossAxisAlignment.start ||
       crossAxisAlignment == CrossAxisAlignment.end;
@@ -125,6 +128,7 @@ class VList extends MultiChildRenderObjectWidget {
   @protected
   TextDirection? getEffectiveTextDirection(BuildContext context) =>
       textDirection ?? (_needTextDirection ? Directionality.of(context) : null);
+
   @override
   RenderRelativeWidthColumn createRenderObject(BuildContext context) =>
       RenderRelativeWidthColumn(
@@ -185,6 +189,7 @@ class RenderRelativeWidthColumn extends RenderBox
 
   TextBaseline get textBaseline => _textBaseline;
   TextBaseline _textBaseline;
+
   set textBaseline(TextBaseline value) {
     if (_textBaseline != value) {
       _textBaseline = value;
@@ -194,6 +199,7 @@ class RenderRelativeWidthColumn extends RenderBox
 
   int get baselineReferenceWidgetIndex => _baselineReferenceWidgetIndex;
   int _baselineReferenceWidgetIndex;
+
   set baselineReferenceWidgetIndex(int value) {
     if (_baselineReferenceWidgetIndex != value) {
       _baselineReferenceWidgetIndex = value;
@@ -212,6 +218,7 @@ class RenderRelativeWidthColumn extends RenderBox
 
   CrossAxisAlignment get crossAxisAlignment => _crossAxisAlignment;
   CrossAxisAlignment _crossAxisAlignment;
+
   set crossAxisAlignment(CrossAxisAlignment value) {
     if (_crossAxisAlignment != value) {
       _crossAxisAlignment = value;
@@ -221,6 +228,7 @@ class RenderRelativeWidthColumn extends RenderBox
 
   TextDirection? get textDirection => _textDirection;
   TextDirection? _textDirection;
+
   set textDirection(TextDirection? value) {
     if (_textDirection != value) {
       _textDirection = value;
@@ -238,6 +246,7 @@ class RenderRelativeWidthColumn extends RenderBox
   }
 
   double? _overflow;
+
   bool get _hasOverflow => _overflow! > precisionErrorTolerance;
 
   @override
@@ -339,9 +348,19 @@ class RenderRelativeWidthColumn extends RenderBox
   }
 
   @override
+  Size computeDryLayout(BoxConstraints constraints) =>
+      _computeLayout(constraints);
+
+  @override
   void performLayout() {
-    distanceToBaseline = null;
-    assert(_debugHasNecessaryDirections);
+    size = _computeLayout(constraints, dry: false);
+  }
+
+  Size _computeLayout(BoxConstraints constraints, {bool dry = true}) {
+    if (!dry) {
+      distanceToBaseline = null;
+      assert(_debugHasNecessaryDirections);
+    }
 
     // First we lay out all fix-sized children
     var rightMost = 0.0;
@@ -355,12 +374,19 @@ class RenderRelativeWidthColumn extends RenderBox
         relativeChildren.add(child);
       } else {
         final innerConstraints = BoxConstraints(maxWidth: constraints.maxWidth);
-        child.layout(innerConstraints, parentUsesSize: true);
-        final width = child.size.width;
+
+        final Size childSize;
+        if (dry) {
+          childSize = child.getDryLayout(innerConstraints);
+        } else {
+          child.layout(innerConstraints, parentUsesSize: true);
+          childSize = child.size;
+        }
+        final width = childSize.width;
         final right = getRightMost(crossAxisAlignment, width);
         leftMost = math.min(leftMost, right - width);
         rightMost = math.max(rightMost, right);
-        allocatedSize += child.size.height + childParentData.trailingMargin;
+        allocatedSize += childSize.height + childParentData.trailingMargin;
       }
       assert(child.parentData == childParentData);
       child = childParentData.nextSibling;
@@ -372,17 +398,32 @@ class RenderRelativeWidthColumn extends RenderBox
     for (final child in relativeChildren) {
       final childParentData = child.parentData as VListParentData;
       assert(childParentData.customCrossSize != null);
-      child.layout(childParentData.customCrossSize!(fixedChildrenCrossSize),
-          parentUsesSize: true);
-      final width = child.size.width;
+
+      final childConstraints =
+          childParentData.customCrossSize!(fixedChildrenCrossSize);
+      final Size childSize;
+      if (dry) {
+        childSize = child.getDryLayout(childConstraints);
+      } else {
+        child.layout(childConstraints, parentUsesSize: true);
+        childSize = child.size;
+      }
+
+      final width = childSize.width;
       final right = getRightMost(crossAxisAlignment, width);
       leftMost = math.min(leftMost, right - width);
       rightMost = math.max(rightMost, right);
-      allocatedSize += child.size.height + childParentData.trailingMargin;
+      allocatedSize += childSize.height + childParentData.trailingMargin;
     }
 
     // Calculate size
-    size = constraints.constrain(Size(rightMost - leftMost, allocatedSize));
+    final size =
+        constraints.constrain(Size(rightMost - leftMost, allocatedSize));
+    if (dry) {
+      // We can return the size at this point when doing the dry layout.
+      return size;
+    }
+
     final actualSize = size.height;
     final crossSize = size.width;
     final actualSizeDelta = actualSize - allocatedSize;
@@ -426,6 +467,8 @@ class RenderRelativeWidthColumn extends RenderBox
       child = childParentData.nextSibling;
       index++;
     }
+
+    return size;
   }
 
   @override

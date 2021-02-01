@@ -1,3 +1,7 @@
+## 0.3.0-nullsafety.1
+
+* Added supported for `getDryLayout`.
+
 ## [0.3.0-nullsafety.1] - 2020/12/21
 
 ## [0.3.0-nullsafety.0] - 2020/12/21

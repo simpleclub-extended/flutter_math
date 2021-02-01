@@ -131,6 +131,7 @@ enum _SqrtPos {
 class SqrtLayoutDelegate extends CustomLayoutDelegate<_SqrtPos> {
   final MathOptions options;
   final MathOptions baseOptions;
+
   // final MathOptions indexOptions;
 
   SqrtLayoutDelegate({
@@ -138,6 +139,7 @@ class SqrtLayoutDelegate extends CustomLayoutDelegate<_SqrtPos> {
     required this.baseOptions,
     // required this.indexOptions,
   });
+
   var heightAboveBaseline = 0.0;
   var svgHorizontalPos = 0.0;
   var svgVerticalPos = 0.0;
@@ -158,20 +160,30 @@ class SqrtLayoutDelegate extends CustomLayoutDelegate<_SqrtPos> {
       0;
 
   @override
-  Size performLayout(
-      BoxConstraints constraints, Map<_SqrtPos, RenderBox> childrenTable) {
+  Size computeLayout(
+    BoxConstraints constraints,
+    Map<_SqrtPos, RenderBox> childrenTable, {
+    bool dry = true,
+  }) {
     final base = childrenTable[_SqrtPos.base]!;
     final index = childrenTable[_SqrtPos.ind];
     final surd = childrenTable[_SqrtPos.surd]!;
 
-    base.layout(infiniteConstraint, parentUsesSize: true);
-    index?.layout(infiniteConstraint, parentUsesSize: true);
+    final Size baseSize;
+    final Size indexSize;
 
-    final baseHeight = base.layoutHeight;
-    // final baseDepth = base.layoutDepth;
-    final baseWidth = base.size.width;
-    final indexHeight = index?.layoutHeight ?? 0.0;
-    final indexWidth = index?.size.width ?? 0.0;
+    if (!dry) {
+      base.layout(infiniteConstraint, parentUsesSize: true);
+      index?.layout(infiniteConstraint, parentUsesSize: true);
+
+      baseSize = base.size;
+      indexSize = index?.size ?? Size.zero;
+    } else {
+      baseSize = base.getDryLayout(infiniteConstraint);
+      indexSize = index?.getDryLayout(infiniteConstraint) ?? Size.zero;
+    }
+
+    // final indexHeight = index?.layoutHeight ?? 0.0;
 
     final theta = baseOptions.fontMetrics.defaultRuleThickness.cssEm
         .toLpUnder(baseOptions);
@@ -182,10 +194,23 @@ class SqrtLayoutDelegate extends CustomLayoutDelegate<_SqrtPos> {
 
     final minSqrtHeight = base.size.height + psi + theta;
 
-    // Pick sqrt svg
-    surd.layout(BoxConstraints(minWidth: baseWidth, minHeight: minSqrtHeight),
-        parentUsesSize: true);
-    final advanceWidth = getSqrtAdvanceWidth(minSqrtHeight, baseWidth, options);
+    final Size surdSize;
+    final surdConstraints = BoxConstraints(
+      minWidth: baseSize.width,
+      minHeight: minSqrtHeight,
+    );
+    if (!dry) {
+      // Pick sqrt svg
+      surd.layout(
+        surdConstraints,
+        parentUsesSize: true,
+      );
+      surdSize = surd.size;
+    } else {
+      surdSize = surd.getDryLayout(surdConstraints);
+    }
+    final advanceWidth =
+        getSqrtAdvanceWidth(minSqrtHeight, baseSize.width, options);
 
     // Parameters for index
     // from KaTeX/src/katex.less
@@ -195,31 +220,37 @@ class SqrtLayoutDelegate extends CustomLayoutDelegate<_SqrtPos> {
 
     // Horizontal layout
     final sqrtHorizontalPos =
-        math.max(0.0, indexLeftPadding + indexWidth + indexRightPadding);
-    final width = sqrtHorizontalPos + surd.size.width;
+        math.max(0.0, indexLeftPadding + indexSize.width + indexRightPadding);
+    final width = sqrtHorizontalPos + surdSize.width;
     svgHorizontalPos = sqrtHorizontalPos;
 
-    // Vertical layout
-    final delimDepth = surd.layoutDepth;
-    final ruleWidth = surd.layoutHeight;
-    if (delimDepth > base.size.height + psi) {
-      psi += 0.5 * (delimDepth - base.size.height - psi);
-    }
-    final bodyHeight = baseHeight + psi + ruleWidth;
-    final bodyDepth = surd.size.height - bodyHeight;
+    final ruleWidth = dry
+        ?
+        // todo(znjameswu): figure out how to deal with this during dry layout.
+        0
+        : surd.layoutHeight;
+    final bodyHeight = baseSize.height + psi + ruleWidth;
+    final bodyDepth = surdSize.height - bodyHeight;
     final indexShift = 0.6 * (bodyHeight - bodyDepth);
-    final sqrtVerticalPos =
-        math.max(0.0, indexHeight + indexShift - baseHeight - psi - ruleWidth);
-    heightAboveBaseline = bodyHeight + sqrtVerticalPos;
-    final fullHeight = sqrtVerticalPos + surd.size.height;
+    final sqrtVerticalPos = math.max(
+        0.0, indexSize.height + indexShift - baseSize.height - psi - ruleWidth);
+    if (!dry) {
+      // Vertical layout
+      final delimDepth = surd.layoutDepth;
+      if (delimDepth > base.size.height + psi) {
+        psi += 0.5 * (delimDepth - base.size.height - psi);
+      }
+      heightAboveBaseline = bodyHeight + sqrtVerticalPos;
 
-    base.offset = Offset(
-        sqrtHorizontalPos + advanceWidth, heightAboveBaseline - baseHeight);
-    index?.offset = Offset(sqrtHorizontalPos - indexRightPadding - indexWidth,
-        heightAboveBaseline - indexShift - indexHeight);
-    surd.offset = Offset(sqrtHorizontalPos, sqrtVerticalPos);
+      base.offset = Offset(sqrtHorizontalPos + advanceWidth,
+          heightAboveBaseline - baseSize.height);
+      index?.offset = Offset(
+          sqrtHorizontalPos - indexRightPadding - indexSize.width,
+          heightAboveBaseline - indexShift - indexSize.height);
+      surd.offset = Offset(sqrtHorizontalPos, sqrtVerticalPos);
+    }
 
-    return Size(width, fullHeight);
+    return Size(width, sqrtVerticalPos + surdSize.height);
   }
 }
 
