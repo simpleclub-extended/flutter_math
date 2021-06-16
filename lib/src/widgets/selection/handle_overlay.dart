@@ -198,6 +198,7 @@ class _MathSelectionHandleOverlayState extends State<MathSelectionHandleOverlay>
                 context,
                 type,
                 widget.manager.preferredLineHeight,
+                null,
               ),
             ),
           ),
